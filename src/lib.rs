@@ -49,6 +49,10 @@ pub struct Patch<'a> {
 }
 
 impl<'a> Patch<'a> {
+    pub fn new(hunks: Vec<Hunk<'a>>, truncation: Option<usize>) -> Self {
+        Patch { hunks, truncation }
+    }
+
     /// Parses an IPS patch from bytes.
     pub fn parse(input: &[u8]) -> Result<Patch, Error> {
         match ips(input) {
@@ -81,7 +85,7 @@ impl<'a> Patch<'a> {
         push_all(&mut res, b"EOF");
 
         if let Some(truncation) = self.truncation {
-            let mut truncation_bytes : [u8 ; 3] = [0; 3];
+            let mut truncation_bytes: [u8; 3] = [0; 3];
             BigEndian::write_u24(&mut truncation_bytes, truncation as u32);
             push_all(&mut res, &truncation_bytes)
         }
@@ -146,6 +150,10 @@ pub struct Hunk<'a> {
 }
 
 impl<'a> Hunk<'a> {
+    pub fn new(offset: usize, payload: Vec<u8>) -> Self {
+        Hunk { offset, payload: Cow::from(payload) }
+    }
+
     /// The offset in the patched file that the hunk should be applied to.
     pub fn offset(&self) -> usize {
         self.offset
@@ -242,11 +250,20 @@ fn push_all(vec: &mut Vec<u8>, data: &[u8]) {
 }
 
 mod tests {
-    use crate::{Patch, push_all};
+    use crate::{Hunk, Patch, push_all};
+
+    #[test]
+    fn new() {
+        let patch = Patch::new(vec![Hunk::new(0x013121, vec![0xFF, 0xEF])], None);
+        assert_eq!(1, patch.hunks().len());
+        assert_eq!(&[0xFF, 0xEF], patch.hunks()[0].payload());
+        assert_eq!(0x013121, patch.hunks()[0].offset());
+        assert_eq!(None, patch.truncation());
+    }
 
     #[test]
     fn push_all_pushes_correctly() {
-        let mut vec : Vec<u8> = vec![0x42, 0xFF, 0xAC];
+        let mut vec: Vec<u8> = vec![0x42, 0xFF, 0xAC];
         push_all(&mut vec, &[0xBA, 0xDA, 0x55]);
         push_all(&mut vec, b"EOF");
         assert_eq!(vec, vec![0x42, 0xFF, 0xAC, 0xBA, 0xDA, 0x55, b'E', b'O', b'F']);
@@ -263,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_single_hunk_patch(){
+    fn parse_single_hunk_patch() {
         let single_hunk_ips_file_bytes = [
             b'P', b'A', b'T', b'C', b'H',
             // add in a single hunk:
@@ -283,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_single_run_length_encoding_hunk_patch(){
+    fn parse_single_run_length_encoding_hunk_patch() {
         let single_hunk_ips_file_bytes = [
             b'P', b'A', b'T', b'C', b'H',
             // add in a single hunk:
@@ -305,8 +322,7 @@ mod tests {
 
 
     #[test]
-    fn parse_rejects_malformed_patches(){
-
+    fn parse_rejects_malformed_patches() {
         let malformed_patches = [
             vec![
                 b'P', b'A', b'T', b'C', b'H',
@@ -316,7 +332,6 @@ mod tests {
                 0xFF, // only 1 byte of data, should be two instead
                 b'E', b'O', b'F',
             ],
-
             vec![
                 b'P', b'A', b'T', b'C', b'H',
                 // add in a single hunk:
@@ -325,7 +340,6 @@ mod tests {
                 0xFF, 0xAA, 0xEF, // 3 bytes of data, should be two instead
                 b'E', b'O', b'F',
             ],
-
             vec![
                 b'P', b'A', b'T', b'C', b'H',
                 // add in a single RLE hunk:
@@ -335,7 +349,6 @@ mod tests {
                 0x01, 0x23, // too many bytes for the RLE hunk!
                 b'E', b'O', b'F',
             ],
-
             vec![
                 b'P', b'A', b'T', b'C', b'H',
                 // add in a single RLE hunk:
@@ -345,21 +358,18 @@ mod tests {
                 // missing byte of data!
                 b'E', b'O', b'F',
             ],
-
             vec![
                 // missing the PATCH header
                 // add in a single hunk:
-                0x01, 0x31, 0x21,  0x00, 0x02,  0xFF, 0xEF,
+                0x01, 0x31, 0x21, 0x00, 0x02, 0xFF, 0xEF,
                 b'E', b'O', b'F',
             ],
-
             vec![
                 b'P', b'A', b'T', b'C', b'H',
                 // add in a single hunk:
-                0x01, 0x31, 0x21,  0x00, 0x02,  0xFF, 0xEF,
+                0x01, 0x31, 0x21, 0x00, 0x02, 0xFF, 0xEF,
                 // missing EOF footer
             ],
-
             vec![], // a totally empty file is invalid, it needs to at least have the header & footer
         ];
 
@@ -371,7 +381,7 @@ mod tests {
 
 
     #[test]
-    fn parse_single_hunk_patch_with_truncation(){
+    fn parse_single_hunk_patch_with_truncation() {
         let single_hunk_ips_file_bytes = [
             b'P', b'A', b'T', b'C', b'H',
             // add in a single hunk:
@@ -410,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn applies_patch_with_two_hunks_with_truncation(){
+    fn applies_patch_with_two_hunks_with_truncation() {
         let ips_file_bytes = [
             b'P', b'A', b'T', b'C', b'H',
             // add in a single hunk:
@@ -431,15 +441,14 @@ mod tests {
         let patched_rom = patch.apply_to_rom(&[0xFF; 32]);
 
         assert_eq!(patched_rom, vec![
-            0xFF, 0xFF, 0xAB, 0xCD,  0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xBA, 0xDA,  0x55, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xAB, 0xCD, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xBA, 0xDA, 0x55, 0xFF, 0xFF, 0xFF,
         ]);
     }
 
 
-
     #[test]
-    fn applies_patch_with_run_length_encoding(){
+    fn applies_patch_with_run_length_encoding() {
         let ips_file_bytes = [
             b'P', b'A', b'T', b'C', b'H',
             // add in a single hunk:
@@ -455,10 +464,10 @@ mod tests {
         let patched_rom = patch.apply_to_rom(&[0xFF; 32]);
 
         assert_eq!(patched_rom, vec![
-            0xFF, 0xFF, 0xA1, 0xA1,  0xA1, 0xA1, 0xA1, 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xA1, 0xA1, 0xA1, 0xA1, 0xA1, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]);
     }
 }
