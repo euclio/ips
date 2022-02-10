@@ -156,7 +156,7 @@ impl<'a> Hunk<'a> {
         &self.payload
     }
 
-    /// Returns the starting offset of this hunk as a 2-byte big-endian number.
+    /// Returns the starting offset of this hunk as a 3-byte big-endian number.
     /// Used to write the contents of this patch to an IPS file.
     fn offset_bytes(&self) -> [u8; 3] {
         let mut buf: [u8; 3] = [0; 3];
