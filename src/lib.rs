@@ -103,10 +103,7 @@ fn ips(input: &[u8]) -> IResult<&[u8], Patch> {
 
     let (input, truncation) = opt(be_int(3))(input)?;
 
-    Ok((input, Patch {
-        hunks,
-        truncation,
-    }))
+    Ok((input, Patch { hunks, truncation }))
 }
 
 fn hunk(input: &[u8]) -> IResult<&[u8], Hunk> {
