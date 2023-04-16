@@ -1,6 +1,6 @@
 [package]
 name = "ips"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Andy Russell <arussell123@gmail.com>"]
 edition = "2018"
 description = "Parser for the IPS file format."
