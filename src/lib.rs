@@ -7,12 +7,15 @@
 //! Patching a ROM from an IPS file:
 //!
 //! ```no_run
-//! use std::fs::{self, File};
+//! use std::fs::{self, OpenOptions};
 //! use std::io::{Seek, SeekFrom, Write};
 //!
 //! use ips::Patch;
 //!
-//! let mut rom = File::open("Super Metroid.sfc")?;
+//! let mut rom = OpenOptions::new()
+//!     .read(true)
+//!     .write(true)
+//!     .open("Super Metroid.sfc")?;
 //! let patch_contents = fs::read("Hyper Metroid.ips")?;
 //! let patch = Patch::parse(&patch_contents)?;
 //!
